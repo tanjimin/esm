@@ -29,6 +29,7 @@ class TransformerStack(nn.Module):
         n_heads: int,
         v_heads: int | None,
         n_layers: int,
+        return_attn_matrix: bool,
         n_layers_geom: int = 1,
         scale_residue: bool = True,
         mask_and_zero_frameless: bool = False,
@@ -53,11 +54,13 @@ class TransformerStack(nn.Module):
                     bias=bias,
                     qk_layernorm=qk_layernorm,
                     ffn_type=ffn_type,
+                    return_attn_matrix=return_attn_matrix,
                 )
                 for i in range(n_layers)
             ]
         )
         self.norm = nn.LayerNorm(d_model, bias=False)
+        self.return_attn_matrix = return_attn_matrix
 
     def forward(
         self,
@@ -85,6 +88,16 @@ class TransformerStack(nn.Module):
         *batch_dims, _ = x.shape
         if chain_id is None:
             chain_id = torch.ones(size=batch_dims, dtype=torch.int64, device=x.device)
+        
+        attn_mat_list = []
         for block in self.blocks:
-            x = block(x, sequence_id, affine, affine_mask, chain_id)
-        return self.norm(x), x
+            if self.return_attn_matrix:
+                x, attn_mat = block(x, sequence_id, affine, affine_mask, chain_id)
+                attn_mat_list.append(attn_mat)
+            else:
+                x = block(x, sequence_id, affine, affine_mask, chain_id)
+            
+        if self.return_attn_matrix:
+            return self.norm(x), x, attn_mat_list
+        else:
+            return self.norm(x), x

@@ -13,6 +13,7 @@ class MultiHeadAttention(nn.Module):
         self,
         d_model: int,
         n_heads: int,
+        return_attn_matrix: bool,
         bias: bool = False,
         qk_layernorm: bool = True,
     ):
@@ -35,6 +36,7 @@ class MultiHeadAttention(nn.Module):
             self.k_ln = nn.Identity()
 
         self.rotary = RotaryEmbedding(d_model // n_heads)
+        self.return_attn_matrix = return_attn_matrix
 
     def _apply_rotary(self, q: torch.Tensor, k: torch.Tensor):
         q = q.unflatten(-1, (self.n_heads, self.d_head))
@@ -74,4 +76,22 @@ class MultiHeadAttention(nn.Module):
                 query_BHLD, key_BHLD, value_BHLD
             )
         context_BLD = einops.rearrange(context_BHLD, "b h s d -> b s (h d)")
-        return self.out_proj(context_BLD)
+        if self.return_attn_matrix:
+            attn_mat = self._get_attn_matrix(query_BHLD, key_BHLD)
+            #output = attn_mat @ value_BHLD
+            #print((output - context_BHLD).mean())
+            #breakpoint()
+            return self.out_proj(context_BLD), attn_mat
+        else:
+            return self.out_proj(context_BLD)
+    
+    def _get_attn_matrix(self, queries_heads, keys_heads):
+        """
+        Compute the attention matrix for a given query and key.
+        """
+        import math
+        scale_factor = 1 / math.sqrt(queries_heads.size(-1))
+        attn_matrix = torch.einsum("bhld,bhsd->bhls", queries_heads, keys_heads) * scale_factor
+        #attn_matrix = torch.einsum("bqd,bkd->bqk", queries, keys) * scale_factor
+        attn_matrix = attn_matrix.softmax(dim=-1)
+        return attn_matrix

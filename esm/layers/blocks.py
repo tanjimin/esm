@@ -76,6 +76,7 @@ class UnifiedTransformerBlock(nn.Module):
         self,
         d_model: int,
         n_heads: int,
+        return_attn_matrix: bool,
         use_geom_attn: bool = False,
         use_plain_attn: bool = True,
         v_heads: int | None = None,
@@ -90,7 +91,7 @@ class UnifiedTransformerBlock(nn.Module):
         self.use_plain_attn = use_plain_attn
         if self.use_plain_attn:
             self.attn = MultiHeadAttention(
-                d_model, n_heads, bias, qk_layernorm=qk_layernorm
+                d_model, n_heads, return_attn_matrix, bias, qk_layernorm=qk_layernorm
             )
         self.use_geom_attn = use_geom_attn
         if self.use_geom_attn:
@@ -109,6 +110,7 @@ class UnifiedTransformerBlock(nn.Module):
         else:
             raise ValueError(f"Unknown ffn_type: {ffn_type}")
         self.scaling_factor = residue_scaling_factor
+        self.return_attn_matrix = return_attn_matrix
 
     def forward(
         self,
@@ -140,7 +142,10 @@ class UnifiedTransformerBlock(nn.Module):
             The output tensor after applying the transformer block operations.
         """
         if self.use_plain_attn:
-            r1 = self.attn(x, sequence_id)
+            if self.return_attn_matrix:
+                r1, attn_mat = self.attn(x, sequence_id)
+            else:
+                r1 = self.attn(x, sequence_id)
             x = x + r1 / self.scaling_factor
 
         if self.use_geom_attn:
@@ -150,4 +155,7 @@ class UnifiedTransformerBlock(nn.Module):
         r3 = self.ffn(x) / self.scaling_factor
         x = x + r3
 
-        return x
+        if self.return_attn_matrix:
+            return x, attn_mat
+        else:
+            return x
