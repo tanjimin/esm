@@ -1,13 +1,14 @@
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
 from tokenizers.processors import TemplateProcessing
-from transformers import PreTrainedTokenizerFast
+#from transformers import PreTrainedTokenizerFast
 
 from esm.tokenization.tokenizer_base import EsmTokenizerBase
 from esm.utils.constants import esm3 as C
 
 
-class EsmSequenceTokenizer(PreTrainedTokenizerFast, EsmTokenizerBase):
+#class EsmSequenceTokenizer(PreTrainedTokenizerFast, EsmTokenizerBase):
+class EsmSequenceTokenizer(EsmTokenizerBase):
     """
     Constructs an ESM tokenizer.
     """
